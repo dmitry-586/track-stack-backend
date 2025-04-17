@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  userId      String     @id @default(cuid())
+  email       String     @unique
+  password    String
+  userRoadmaps UserRoadmap[]
+  userSkills  UserSkill[]
+  focusSkills FocusSkill[]
+}
+
+model Skill {
+  skillId     String     @id @default(cuid())
+  name        String     @unique
+  roadmapIds  String[]
+  userSkills  UserSkill[]
+  focusSkills FocusSkill[]
+}
+
+model Roadmap {
+  roadmapId    String     @id
+  title        String
+  complexity   String
+  color        String
+  stages       Int
+  technologies String
+  userRoadmaps UserRoadmap[]
+}
+
+model UserSkill {
+  userId    String
+  skillId   String
+  progress  Int
+  user      User   @relation(fields: [userId], references: [userId])
+  skill     Skill  @relation(fields: [skillId], references: [skillId])
+
+  @@id([userId, skillId])
+}
+
+model FocusSkill {
+  userId    String
+  skillId   String
+  progress  Int
+  user      User   @relation(fields: [userId], references: [userId])
+  skill     Skill  @relation(fields: [skillId], references: [skillId])
+
+  @@id([userId, skillId])
+}
+
+model UserRoadmap {
+  userId    String
+  roadmapId String
+  progress  Int
+  user      User    @relation(fields: [userId], references: [userId])
+  roadmap   Roadmap @relation(fields: [roadmapId], references: [roadmapId])
+
+  @@id([userId, roadmapId])
+}

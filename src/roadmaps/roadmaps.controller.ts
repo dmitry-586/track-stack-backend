@@ -23,17 +23,9 @@ export class RoadmapsController {
   //получить roadmap по id
   @Get(":id")
   async getRoadmapById(
-    @Param("id") roadmapId: string
+    @Param("id") roadmapId: string,
   ): Promise<Roadmap | null> {
     return this.roadmapsService.getRoadmapById(roadmapId);
-  }
-
-  //получить roadmaps, которые привязаны к юзеру по id
-  @Get("user/:userId")
-  async getUserRoadmaps(
-    @Param("userId") userId: string
-  ): Promise<(UserRoadmap & { roadmap: Roadmap })[]> {
-    return this.roadmapsService.getUserRoadmaps(userId);
   }
 
   //добавить roadmap в общую БД
@@ -47,7 +39,7 @@ export class RoadmapsController {
       color: string;
       stages: number;
       technologies: string;
-    }
+    },
   ): Promise<Roadmap> {
     return this.roadmapsService.createRoadmap(data);
   }
@@ -64,7 +56,7 @@ export class RoadmapsController {
       stages?: number;
       technologies?: string;
       isPublic?: boolean;
-    }
+    },
   ): Promise<Roadmap> {
     return this.roadmapsService.updateRoadmap(roadmapId, data);
   }
@@ -75,11 +67,19 @@ export class RoadmapsController {
     return this.roadmapsService.deleteRoadmap(roadmapId);
   }
 
+  //получить roadmaps, которые привязаны к юзеру по id
+  @Get("user/:userId")
+  async getUserRoadmaps(
+    @Param("userId") userId: string,
+  ): Promise<(UserRoadmap & { roadmap: Roadmap })[]> {
+    return this.roadmapsService.getUserRoadmaps(userId);
+  }
+
   //привязать roadmap к юзеру по id
   @Post(":roadmapId/user/:userId")
   async addRoadmapToUser(
     @Param("roadmapId") roadmapId: string,
-    @Param("userId") userId: string
+    @Param("userId") userId: string,
   ): Promise<void> {
     return this.roadmapsService.addRoadmapToUser(userId, roadmapId);
   }
@@ -88,7 +88,7 @@ export class RoadmapsController {
   @Delete(":roadmapId/user/:userId")
   async removeRoadmapFromUser(
     @Param("roadmapId") roadmapId: string,
-    @Param("userId") userId: string
+    @Param("userId") userId: string,
   ): Promise<void> {
     return this.roadmapsService.removeRoadmapFromUser(userId, roadmapId);
   }
@@ -98,12 +98,12 @@ export class RoadmapsController {
   async updateUserRoadmapProgress(
     @Param("roadmapId") roadmapId: string,
     @Param("userId") userId: string,
-    @Body("progress") progress: number
+    @Body("progress") progress: number,
   ): Promise<void> {
     return this.roadmapsService.updateUserRoadmapProgress(
       userId,
       roadmapId,
-      progress
+      progress,
     );
   }
 }

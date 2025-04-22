@@ -32,18 +32,18 @@ export class UsersController {
   @Post()
   async createUser(
     @Body("email") email: string,
-    @Body("password") password: string
+    @Body("password") password: string,
   ) {
     return await this.usersService.createUser(email, password);
   }
 
-  @Put(":id")
+  @Put(":userId")
   async updateUser(
-    @Param("id") id: string,
+    @Param("userId") userId: string,
     @Body("email") email: string,
-    @Body("password") password: string
+    @Body("password") password: string,
   ) {
-    return await this.usersService.updateUser(id, password, email);
+    return await this.usersService.updateUser(userId, password, email);
   }
 
   @Delete(":userId")

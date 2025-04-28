@@ -8,24 +8,25 @@ datasource db {
 }
 
 model User {
-  userId      String     @id @default(cuid())
-  email       String     @unique
-  password    String
+  userId       String        @id @default(cuid())
+  email        String        @unique
+  password     String
   userRoadmaps UserRoadmap[]
-  userSkills  UserSkill[]
-  focusSkills FocusSkill[]
+  userSkills   UserSkill[]
+  focusSkills  FocusSkill[]
 }
 
 model Skill {
-  skillId     String     @id @default(cuid())
-  name        String     @unique
+  skillId     String       @id @default(cuid())
+  name        String       @unique
   roadmapIds  String[]
   userSkills  UserSkill[]
   focusSkills FocusSkill[]
+  tasks       Task[]
 }
 
 model Roadmap {
-  roadmapId    String     @id
+  roadmapId    String        @id
   title        String
   complexity   String
   color        String
@@ -35,21 +36,21 @@ model Roadmap {
 }
 
 model UserSkill {
-  userId    String
-  skillId   String
-  progress  Int
-  user      User   @relation(fields: [userId], references: [userId])
-  skill     Skill  @relation(fields: [skillId], references: [skillId])
+  userId   String
+  skillId  String
+  progress Int
+  user     User   @relation(fields: [userId], references: [userId])
+  skill    Skill  @relation(fields: [skillId], references: [skillId])
 
   @@id([userId, skillId])
 }
 
 model FocusSkill {
-  userId    String
-  skillId   String
-  progress  Int
-  user      User   @relation(fields: [userId], references: [userId])
-  skill     Skill  @relation(fields: [skillId], references: [skillId])
+  userId   String
+  skillId  String
+  progress Int
+  user     User   @relation(fields: [userId], references: [userId])
+  skill    Skill  @relation(fields: [skillId], references: [skillId])
 
   @@id([userId, skillId])
 }
@@ -62,4 +63,12 @@ model UserRoadmap {
   roadmap   Roadmap @relation(fields: [roadmapId], references: [roadmapId])
 
   @@id([userId, roadmapId])
+}
+
+model Task {
+  taskId    String  @id @default(cuid())
+  title     String
+  completed Boolean @default(false)
+  skillId   String
+  skill     Skill   @relation(fields: [skillId], references: [skillId])
 }

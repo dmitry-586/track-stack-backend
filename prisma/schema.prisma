@@ -14,6 +14,7 @@ model User {
   userRoadmaps UserRoadmap[]
   userSkills   UserSkill[]
   focusSkills  FocusSkill[]
+  userTasks    UserTask[]
 }
 
 model Skill {
@@ -66,9 +67,20 @@ model UserRoadmap {
 }
 
 model Task {
-  taskId    String  @id @default(cuid())
+  taskId    String     @id @default(cuid())
   title     String
-  completed Boolean @default(false)
   skillId   String
-  skill     Skill   @relation(fields: [skillId], references: [skillId])
+  skill     Skill      @relation(fields: [skillId], references: [skillId])
+  userTasks UserTask[]
+}
+
+model UserTask {
+  userId    String  @map("user_id")
+  taskId    String  @map("task_id")
+  completed Boolean @default(false)
+  user      User    @relation(fields: [userId], references: [userId])
+  task      Task    @relation(fields: [taskId], references: [taskId])
+
+  @@id([userId, taskId])
+  @@map("user_tasks")
 }

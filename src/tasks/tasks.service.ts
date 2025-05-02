@@ -1,52 +1,107 @@
+// tasks.service.ts
 import { Injectable } from "@nestjs/common"
-import { Task } from "@prisma/client"
+import { Prisma, Task, UserTask } from "@prisma/client"
 import { PrismaService } from "src/prisma.service"
+import { SkillsService } from "src/skills/skills.service"
 
 @Injectable()
 export class TasksService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private skillsService: SkillsService
+	) {}
 
-	async getTasks(skillId: string): Promise<Task[]> {
+	async getTasks(skillId?: string): Promise<Task[]> {
 		return this.prisma.task.findMany({
-			where: { skillId },
-			include: {
-				skill: true,
-			},
+			where: skillId ? { skillId } : undefined,
+			include: { skill: true },
+		})
+	}
+
+	async getUserTasks(userId: string, skillId?: string): Promise<UserTask[]> {
+		const where: Prisma.UserTaskWhereInput = { userId }
+		if (skillId) {
+			where.task = { skillId }
+		}
+
+		return this.prisma.userTask.findMany({
+			where,
+			include: { task: { include: { skill: true } } },
 		})
 	}
 
 	async createTask(title: string, skillId: string): Promise<Task> {
-		return this.prisma.task.create({
-			data: {
-				title,
-				skillId,
-				completed: false,
-			},
-			include: {
-				skill: true,
-			},
+		return this.prisma.$transaction(async prisma => {
+			const task = await prisma.task.create({
+				data: { title, skillId },
+				include: { skill: true },
+			})
+
+			const userSkills = await prisma.userSkill.findMany({
+				where: { skillId },
+				select: { userId: true },
+			})
+
+			await Promise.all(
+				userSkills.map(({ userId }) =>
+					this.skillsService.calculateAndUpdateSkillProgress(
+						userId,
+						skillId,
+						prisma
+					)
+				)
+			)
+
+			return task
 		})
 	}
 
-	async updateTask(
+	async updateUserTaskStatus(
 		taskId: string,
-		data: { title?: string; completed?: boolean }
-	): Promise<Task> {
-		return this.prisma.task.update({
-			where: { taskId },
-			data,
-			include: {
-				skill: true,
-			},
+		userId: string,
+		completed: boolean
+	): Promise<UserTask> {
+		return this.prisma.$transaction(async prisma => {
+			const updatedTask = await prisma.userTask.upsert({
+				where: { userId_taskId: { userId, taskId } },
+				update: { completed },
+				create: { userId, taskId, completed },
+				include: { task: { include: { skill: true } } },
+			})
+
+			await this.skillsService.calculateAndUpdateSkillProgress(
+				userId,
+				updatedTask.task.skillId,
+				prisma
+			)
+
+			return updatedTask
 		})
 	}
 
 	async removeTask(taskId: string): Promise<Task> {
-		return this.prisma.task.delete({
-			where: { taskId },
-			include: {
-				skill: true,
-			},
+		return this.prisma.$transaction(async prisma => {
+			const task = await prisma.task.delete({
+				where: { taskId },
+				include: { skill: true },
+			})
+
+			const userSkills = await prisma.userSkill.findMany({
+				where: { skillId: task.skillId },
+				select: { userId: true },
+			})
+
+			await Promise.all(
+				userSkills.map(({ userId }) =>
+					this.skillsService.calculateAndUpdateSkillProgress(
+						userId,
+						task.skillId,
+						prisma
+					)
+				)
+			)
+
+			return task
 		})
 	}
 }

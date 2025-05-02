@@ -78,16 +78,6 @@ export class SkillsController {
     return this.skillsService.removeSkillFromUser(userId, skillId);
   }
 
-  //обновить прогресс скилла, привязанного к юзеру по id
-  @Put(":skillId/user/:userId/progress")
-  async updateSkillProgress(
-    @Param("skillId") skillId: string,
-    @Param("userId") userId: string,
-    @Body("progress") progress: number
-  ): Promise<void> {
-    return this.skillsService.updateSkillProgress(userId, skillId, progress);
-  }
-
   //получить фокус скиллы
   @Get("user/:userId/focus")
   async getFocusSkills(

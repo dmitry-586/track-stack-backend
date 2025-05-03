@@ -1,4 +1,3 @@
-// tasks.service.ts
 import { Injectable } from "@nestjs/common"
 import { Prisma, Task, UserTask } from "@prisma/client"
 import { PrismaService } from "src/prisma.service"
@@ -44,6 +43,48 @@ export class TasksService {
 
 			await Promise.all(
 				userSkills.map(({ userId }) =>
+					prisma.userTask.create({
+						data: {
+							userId,
+							taskId: task.taskId,
+							completed: false,
+						},
+					})
+				)
+			)
+
+			const skill = await prisma.skill.findUnique({
+				where: { skillId },
+				include: { roadmaps: true }
+			})
+
+			if (skill && skill.roadmaps.length > 0) {
+				for (const roadmap of skill.roadmaps) {
+					const userRoadmaps = await prisma.userRoadmap.findMany({
+						where: { roadmapId: roadmap.roadmapId },
+						select: { userId: true },
+					})
+
+					for (const { userId } of userRoadmaps) {
+						const existingTask = await prisma.userTask.findUnique({
+							where: { userId_taskId: { userId, taskId: task.taskId } },
+						})
+						
+						if (!existingTask) {
+							await prisma.userTask.create({
+								data: {
+									userId,
+									taskId: task.taskId,
+									completed: false,
+								},
+							})
+						}
+					}
+				}
+			}
+
+			await Promise.all(
+				userSkills.map(({ userId }) =>
 					this.skillsService.calculateAndUpdateSkillProgress(
 						userId,
 						skillId,
@@ -62,6 +103,17 @@ export class TasksService {
 		completed: boolean
 	): Promise<UserTask> {
 		return this.prisma.$transaction(async prisma => {
+			const task = await prisma.task.findUnique({
+				where: { taskId },
+				include: { 
+					skill: true 
+				},
+			})
+
+			if (!task) {
+				throw new Error("Task not found")
+			}
+
 			const updatedTask = await prisma.userTask.upsert({
 				where: { userId_taskId: { userId, taskId } },
 				update: { completed },
@@ -69,11 +121,40 @@ export class TasksService {
 				include: { task: { include: { skill: true } } },
 			})
 
+			if (completed) {
+				await prisma.userSkill.upsert({
+					where: { userId_skillId: { userId, skillId: task.skillId } },
+					update: {},
+					create: {
+						userId,
+						skillId: task.skillId,
+						progress: 0,
+					},
+				})
+			}
+
 			await this.skillsService.calculateAndUpdateSkillProgress(
 				userId,
-				updatedTask.task.skillId,
+				task.skillId,
 				prisma
 			)
+
+			const skill = await prisma.skill.findUnique({
+				where: { skillId: task.skillId },
+				include: { roadmaps: true }
+			})
+
+			if (skill && skill.roadmaps.length > 0) {
+				const roadmapsService = this.skillsService.getRoadmapsService();
+				if (roadmapsService) {
+					for (const roadmap of skill.roadmaps) {
+						await roadmapsService.calculateRoadmapProgress(
+							userId, 
+							roadmap.roadmapId
+						);
+					}
+				}
+			}
 
 			return updatedTask
 		})
@@ -81,27 +162,92 @@ export class TasksService {
 
 	async removeTask(taskId: string): Promise<Task> {
 		return this.prisma.$transaction(async prisma => {
-			const task = await prisma.task.delete({
+			const task = await prisma.task.findUnique({
+				where: { taskId },
+				include: { skill: true },
+			})
+			
+			if (!task) {
+				throw new Error("Task not found")
+			}
+			
+			const skillId = task.skillId;
+
+			const skill = await prisma.skill.findUnique({
+				where: { skillId },
+				include: { roadmaps: true }
+			});
+
+			const affectedUsers = await prisma.userTask.findMany({
+				where: { taskId },
+				select: { userId: true },
+			})
+
+			await prisma.userTask.deleteMany({
+				where: { taskId },
+			})
+			
+			const deletedTask = await prisma.task.delete({
 				where: { taskId },
 				include: { skill: true },
 			})
 
-			const userSkills = await prisma.userSkill.findMany({
-				where: { skillId: task.skillId },
-				select: { userId: true },
+			for (const { userId } of affectedUsers) {
+				await this.skillsService.calculateAndUpdateSkillProgress(
+					userId,
+					skillId,
+					prisma
+				)
+				
+				if (skill && skill.roadmaps.length > 0) {
+					const roadmapsService = this.skillsService.getRoadmapsService();
+					if (roadmapsService) {
+						for (const roadmap of skill.roadmaps) {
+							await roadmapsService.calculateRoadmapProgress(userId, roadmap.roadmapId);
+						}
+					}
+				}
+			}
+
+			return deletedTask
+		})
+	}
+
+	// Удаление всех задач пользователя
+	async removeAllUserTasks(userId: string): Promise<void> {
+		return this.prisma.$transaction(async prisma => {
+			// Получаем все задачи пользователя для логирования
+			const userTasks = await prisma.userTask.findMany({
+				where: { userId },
+				include: { task: true },
 			})
 
-			await Promise.all(
-				userSkills.map(({ userId }) =>
-					this.skillsService.calculateAndUpdateSkillProgress(
-						userId,
-						task.skillId,
-						prisma
-					)
-				)
-			)
+			if (userTasks.length === 0) {
+				console.log(`User ${userId} has no tasks to remove`)
+				return
+			}
 
-			return task
+			// Получаем идентификаторы навыков, к которым относятся задачи пользователя
+			const affectedSkillIds = new Set<string>()
+			for (const userTask of userTasks) {
+				affectedSkillIds.add(userTask.task.skillId)
+			}
+
+			// Удаляем все задачи пользователя
+			await prisma.userTask.deleteMany({
+				where: { userId },
+			})
+
+			console.log(`Removed ${userTasks.length} tasks for user ${userId}`)
+
+			// Пересчитываем прогресс для всех затронутых скиллов
+			for (const skillId of affectedSkillIds) {
+				await this.skillsService.calculateAndUpdateSkillProgress(
+					userId,
+					skillId,
+					prisma
+				)
+			}
 		})
 	}
 }

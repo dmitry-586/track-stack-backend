@@ -18,12 +18,12 @@ model User {
 }
 
 model Skill {
-  skillId     String       @id @default(cuid())
-  name        String       @unique
-  roadmapIds  String[]
-  userSkills  UserSkill[]
-  focusSkills FocusSkill[]
-  tasks       Task[]
+  skillId          String       @id @default(cuid())
+  name             String       @unique
+  userSkills       UserSkill[]
+  focusSkills      FocusSkill[]
+  tasks            Task[]
+  roadmaps         Roadmap[]    @relation("RoadmapToSkill")
 }
 
 model Roadmap {
@@ -34,6 +34,7 @@ model Roadmap {
   stages       Int
   technologies String
   userRoadmaps UserRoadmap[]
+  skills       Skill[]       @relation("RoadmapToSkill")
 }
 
 model UserSkill {

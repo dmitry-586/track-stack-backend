@@ -106,4 +106,39 @@ export class RoadmapsController {
       progress,
     );
   }
+
+  // Получение пользовательских задач для роадмапа
+  @Get(":roadmapId/user/:userId/tasks")
+  async getUserRoadmapTasks(
+    @Param("roadmapId") roadmapId: string,
+    @Param("userId") userId: string
+  ) {
+    return this.roadmapsService.getUserRoadmapTasks(userId, roadmapId);
+  }
+
+  // Получение текущего прогресса по роадмапу с расчетом
+  @Get(":roadmapId/user/:userId/progress")
+  async calculateRoadmapProgress(
+    @Param("roadmapId") roadmapId: string,
+    @Param("userId") userId: string
+  ) {
+    return this.roadmapsService.calculateRoadmapProgress(userId, roadmapId);
+  }
+
+  // Удаление всех роадмапов пользователя
+  @Delete("user/:userId/all")
+  async removeAllUserRoadmaps(
+    @Param("userId") userId: string
+  ): Promise<void> {
+    return this.roadmapsService.removeAllUserRoadmaps(userId);
+  }
+
+  // Добавление навыка к роадмапу
+  @Post(":roadmapId/skills/:skillId")
+  async addSkillToRoadmap(
+    @Param("roadmapId") roadmapId: string,
+    @Param("skillId") skillId: string
+  ) {
+    return this.roadmapsService.addSkillToRoadmap(roadmapId, skillId);
+  }
 }

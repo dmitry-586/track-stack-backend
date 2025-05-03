@@ -50,4 +50,10 @@ export class UsersController {
   async deleteUser(@Param("userId") userId: string) {
     return await this.usersService.deleteUser(userId);
   }
+
+  // Очистка всех данных пользователя (роадмапы, скиллы, задачи)
+  @Delete(":userId/data")
+  async clearUserData(@Param("userId") userId: string) {
+    return await this.usersService.clearUserData(userId);
+  }
 }

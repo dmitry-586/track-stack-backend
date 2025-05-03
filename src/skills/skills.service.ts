@@ -1,23 +1,38 @@
-import { HttpException, HttpStatus, Injectable } from "@nestjs/common"
+import { HttpException, HttpStatus, Inject, Injectable, forwardRef } from "@nestjs/common"
 import { Prisma, Skill } from "@prisma/client"
 import { PrismaService } from "src/prisma.service"
+import { RoadmapsService } from "src/roadmaps/roadmaps.service"
 
 @Injectable()
 export class SkillsService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		@Inject(forwardRef(() => RoadmapsService))
+		private roadmapsService: RoadmapsService
+	) {}
+
+	// Получение доступа к roadmapsService для других сервисов
+	getRoadmapsService(): RoadmapsService | undefined {
+		return this.roadmapsService;
+	}
 
 	async getAllSkills(roadmapId?: string): Promise<Skill[]> {
-		const skills = await this.prisma.skill.findMany({
-			include: { tasks: true },
-		})
-
 		if (roadmapId) {
-			return skills.filter(skill =>
-				(skill as { roadmapIds: string[] }).roadmapIds.includes(roadmapId)
-			)
+			// Если указан roadmapId, получаем скиллы связанные с этим роадмапом
+			return this.prisma.skill.findMany({
+				where: {
+					roadmaps: {
+						some: { roadmapId }
+					}
+				},
+				include: { tasks: true },
+			});
 		}
 
-		return skills
+		// Иначе возвращаем все скиллы
+		return this.prisma.skill.findMany({
+			include: { tasks: true },
+		});
 	}
 
 	async getSkillById(skillId: string): Promise<Skill | null> {
@@ -30,7 +45,9 @@ export class SkillsService {
 		return this.prisma.skill.create({
 			data: {
 				name,
-				roadmapIds,
+				roadmaps: {
+					connect: roadmapIds.map(id => ({ roadmapId: id }))
+				}
 			},
 		})
 	}
@@ -55,9 +72,9 @@ export class SkillsService {
 
 		if (roadmapId) {
 			whereCondition.skill = {
-				roadmapIds: {
-					has: roadmapId,
-				},
+				roadmaps: {
+					some: { roadmapId }
+				}
 			}
 		}
 
@@ -97,34 +114,36 @@ export class SkillsService {
 		// Ограничиваем прогресс от 0 до 100
 		const clampedProgress = Math.max(0, Math.min(100, progress))
 
-		const updates = [
-			prisma.userSkill.update({
-				where: { userId_skillId: { userId, skillId } },
-				data: { progress: clampedProgress },
-			}),
-		]
+		// Обновляем скилл пользователя
+		await prisma.userSkill.upsert({
+			where: { userId_skillId: { userId, skillId } },
+			update: { progress: clampedProgress },
+			create: { userId, skillId, progress: clampedProgress },
+		})
 
-		// Если прогресс 100%, проверяем связанные roadmaps
-		if (clampedProgress === 100) {
-			// Здесь можно добавить логику для обновления прогресса roadmap
-			// Например, увеличивать прогресс связанных roadmap
-		}
-
-		// Обновляем фокусные скиллы
+		// Обновляем фокусный скилл, если есть
 		const focusSkill = await prisma.focusSkill.findUnique({
 			where: { userId_skillId: { userId, skillId } },
 		})
 
 		if (focusSkill) {
-			updates.push(
-				prisma.focusSkill.update({
-					where: { userId_skillId: { userId, skillId } },
-					data: { progress: clampedProgress },
-				})
-			)
+			await prisma.focusSkill.update({
+				where: { userId_skillId: { userId, skillId } },
+				data: { progress: clampedProgress },
+			})
 		}
 
-		await Promise.all(updates)
+		// Обновляем прогресс во всех роадмепах, содержащих этот скилл
+		const skill = await prisma.skill.findUnique({
+			where: { skillId },
+			include: { roadmaps: true }
+		})
+
+		if (skill && skill.roadmaps.length > 0) {
+			for (const roadmap of skill.roadmaps) {
+				await this.roadmapsService.calculateRoadmapProgress(userId, roadmap.roadmapId)
+			}
+		}
 	}
 
 	async calculateAndUpdateSkillProgress(
@@ -132,33 +151,69 @@ export class SkillsService {
 		skillId: string,
 		prisma: Prisma.TransactionClient = this.prisma
 	): Promise<void> {
-		const [totalTasks, completedTasks] = await Promise.all([
-			prisma.task.count({ where: { skillId } }),
-			prisma.userTask.count({
-				where: {
-					userId,
-					task: { skillId },
-					completed: true,
-				},
-			}),
-		])
+		// Получаем все задачи для этого скилла
+		const totalTasks = await prisma.task.count({ where: { skillId } })
+		
+		// Если нет задач, пропускаем расчет прогресса
+		if (totalTasks === 0) {
+			return
+		}
+		
+		// Считаем количество завершенных задач
+		const completedTasks = await prisma.userTask.count({
+			where: {
+				userId,
+				task: { skillId },
+				completed: true,
+			},
+		})
 
-		const progress =
-			totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100)
+		// Рассчитываем прогресс как процент выполненных задач
+		const progress = Math.round((completedTasks / totalTasks) * 100)
+		
+		// Создаем или обновляем скилл пользователя с рассчитанным прогрессом
+		await prisma.userSkill.upsert({
+			where: { userId_skillId: { userId, skillId } },
+			update: { progress },
+			create: { userId, skillId, progress },
+		})
+		
+		// Обновляем фокусные скиллы, если есть
+		const focusSkill = await prisma.focusSkill.findUnique({
+			where: { userId_skillId: { userId, skillId } },
+		})
 
-		await this.updateSkillProgress(userId, skillId, progress, prisma)
+		if (focusSkill) {
+			await prisma.focusSkill.update({
+				where: { userId_skillId: { userId, skillId } },
+				data: { progress },
+			})
+		}
+		
+		// Обновляем прогресс во всех роадмепах, содержащих этот скилл
+		const skill = await prisma.skill.findUnique({
+			where: { skillId },
+			include: { roadmaps: true }
+		})
+
+		if (skill && this.roadmapsService && skill.roadmaps.length > 0) {
+			for (const roadmap of skill.roadmaps) {
+				await this.roadmapsService.calculateRoadmapProgress(userId, roadmap.roadmapId)
+			}
+		}
 	}
 
 	async getFocusSkills(userId: string, roadmapId?: string) {
 		const whereCondition: Prisma.FocusSkillWhereInput = {
 			userId: userId,
-			skill: roadmapId
-				? {
-						roadmapIds: {
-							has: roadmapId,
-						},
-					}
-				: undefined,
+		}
+
+		if (roadmapId) {
+			whereCondition.skill = {
+				roadmaps: {
+					some: { roadmapId }
+				}
+			}
 		}
 
 		return this.prisma.focusSkill.findMany({
@@ -225,5 +280,105 @@ export class SkillsService {
 				},
 			},
 		})
+	}
+
+	async addTaskToSkill(
+		skillId: string,
+		title: string
+	): Promise<Skill> {
+		return this.prisma.$transaction(async prisma => {
+			// Проверяем существование скилла
+			const skill = await prisma.skill.findUnique({
+				where: { skillId },
+			})
+			
+			if (!skill) {
+				throw new HttpException("Skill not found", HttpStatus.NOT_FOUND)
+			}
+
+			// Создаем новую задачу
+			await prisma.task.create({
+				data: {
+					title,
+					skillId,
+				},
+			})
+
+			// Получаем обновленный скилл со всеми задачами
+			const updatedSkill = await prisma.skill.findUnique({
+				where: { skillId },
+				include: { tasks: true },
+			})
+
+			if (!updatedSkill) {
+				throw new HttpException("Error retrieving updated skill", HttpStatus.INTERNAL_SERVER_ERROR)
+			}
+
+			return updatedSkill
+		})
+	}
+
+	// Удаление всех скиллов пользователя
+	async removeAllUserSkills(userId: string): Promise<void> {
+		return this.prisma.$transaction(async prisma => {
+			// Получаем все скиллы пользователя
+			const userSkills = await prisma.userSkill.findMany({
+				where: { userId },
+				include: { 
+					skill: {
+						include: { roadmaps: true }
+					} 
+				},
+			})
+
+			if (userSkills.length === 0) {
+				console.log(`User ${userId} has no skills to remove`)
+				return
+			}
+
+			// Удаляем все скиллы пользователя
+			await prisma.userSkill.deleteMany({
+				where: { userId },
+			})
+
+			console.log(`Removed ${userSkills.length} skills for user ${userId}`)
+
+			// Пересчитываем прогресс всех затронутых роадмапов
+			if (this.roadmapsService) {
+				const affectedRoadmapIds = new Set<string>()
+				
+				// Собираем идентификаторы всех затронутых роадмапов
+				for (const userSkill of userSkills) {
+					if (userSkill.skill.roadmaps) {
+						for (const roadmap of userSkill.skill.roadmaps) {
+							affectedRoadmapIds.add(roadmap.roadmapId)
+						}
+					}
+				}
+				
+				// Пересчитываем прогресс для каждого роадмапа
+				for (const roadmapId of affectedRoadmapIds) {
+					await this.roadmapsService.calculateRoadmapProgress(userId, roadmapId)
+				}
+			}
+		})
+	}
+
+	// Удаление всех фокусных скиллов пользователя
+	async removeAllUserFocusSkills(userId: string): Promise<void> {
+		try {
+			// Удаляем все фокусные скиллы пользователя
+			const result = await this.prisma.focusSkill.deleteMany({
+				where: { userId },
+			})
+
+			console.log(`Removed ${result.count} focus skills for user ${userId}`)
+		} catch (error) {
+			console.error(`Error removing focus skills for user ${userId}:`, error)
+			throw new HttpException(
+				"Failed to remove focus skills",
+				HttpStatus.INTERNAL_SERVER_ERROR
+			)
+		}
 	}
 }

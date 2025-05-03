@@ -104,4 +104,29 @@ export class SkillsController {
   ): Promise<void> {
     return this.skillsService.removeSkillFromFocus(userId, skillId);
   }
+
+  //добавить задачу к навыку
+  @Post(":skillId/tasks")
+  async addTaskToSkill(
+    @Param("skillId") skillId: string,
+    @Body("title") title: string
+  ): Promise<Skill> {
+    return this.skillsService.addTaskToSkill(skillId, title);
+  }
+
+  // Удаление всех скиллов пользователя
+  @Delete("user/:userId/all")
+  async removeAllUserSkills(
+    @Param("userId") userId: string
+  ): Promise<void> {
+    return this.skillsService.removeAllUserSkills(userId);
+  }
+
+  // Удаление всех фокусных скиллов пользователя
+  @Delete("user/:userId/focus/all")
+  async removeAllUserFocusSkills(
+    @Param("userId") userId: string
+  ): Promise<void> {
+    return this.skillsService.removeAllUserFocusSkills(userId);
+  }
 }

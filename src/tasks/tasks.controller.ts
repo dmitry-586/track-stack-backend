@@ -56,7 +56,13 @@ export class TasksController {
 	}
 
 	@Delete(":id")
-	async removeTask(@Param("id") id: string): Promise<Task> {
-		return this.tasksService.removeTask(id)
+	async removeTask(@Param("id") taskId: string): Promise<Task> {
+		return this.tasksService.removeTask(taskId)
+	}
+
+	// Удаление всех задач пользователя
+	@Delete("user/:userId/all")
+	async removeAllUserTasks(@Param("userId") userId: string): Promise<void> {
+		return this.tasksService.removeAllUserTasks(userId)
 	}
 }

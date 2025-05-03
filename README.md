@@ -1,98 +1,100 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Track Stack Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Бэкенд для платформы отслеживания прогресса обучения по различным роадмапам, навыкам и задачам.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## API Endpoints
 
-## Description
+### Пользователи (Users)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+| Метод | Эндпоинт | Описание |
+|-------|----------|----------|
+| GET | `/api/users` | Получение списка всех пользователей |
+| GET | `/api/users/:userId` | Получение информации о пользователе по ID |
+| POST | `/api/users` | Создание нового пользователя (email, password) |
+| PUT | `/api/users/:userId` | Обновление данных пользователя |
+| DELETE | `/api/users/:userId` | Удаление пользователя |
+| DELETE | `/api/users/:userId/data` | Очистка всех данных пользователя (роадмапы, скиллы, задачи) |
 
-## Project setup
+### Роадмапы (Roadmaps)
+
+| Метод | Эндпоинт | Описание |
+|-------|----------|----------|
+| GET | `/api/roadmaps` | Получение списка всех роадмапов |
+| GET | `/api/roadmaps/:id` | Получение информации о роадмапе по ID |
+| POST | `/api/roadmaps` | Создание нового роадмапа |
+| PUT | `/api/roadmaps/:id` | Обновление данных роадмапа |
+| DELETE | `/api/roadmaps/:id` | Удаление роадмапа |
+| GET | `/api/roadmaps/user/:userId` | Получение всех роадмапов пользователя |
+| POST | `/api/roadmaps/:roadmapId/user/:userId` | Добавление роадмапа пользователю |
+| DELETE | `/api/roadmaps/:roadmapId/user/:userId` | Удаление роадмапа у пользователя |
+| PUT | `/api/roadmaps/:roadmapId/user/:userId/progress` | Обновление прогресса роадмапа у пользователя |
+| GET | `/api/roadmaps/:roadmapId/user/:userId/tasks` | Получение задач пользователя для конкретного роадмапа |
+| GET | `/api/roadmaps/:roadmapId/user/:userId/progress` | Расчет текущего прогресса роадмапа |
+| DELETE | `/api/roadmaps/user/:userId/all` | Удаление всех роадмапов пользователя |
+| POST | `/api/roadmaps/:roadmapId/skills/:skillId` | Добавление навыка к роадмапу |
+
+### Навыки (Skills)
+
+| Метод | Эндпоинт | Описание |
+|-------|----------|----------|
+| GET | `/api/skills` | Получение списка всех навыков (опционально с фильтром по roadmapId) |
+| GET | `/api/skills/:id` | Получение информации о навыке по ID |
+| POST | `/api/skills` | Создание нового навыка |
+| PUT | `/api/skills/:id` | Обновление данных навыка |
+| DELETE | `/api/skills/:id` | Удаление навыка |
+| GET | `/api/skills/user/:userId` | Получение навыков пользователя (опционально с фильтром по roadmapId) |
+| POST | `/api/skills/:skillId/user/:userId` | Добавление навыка пользователю |
+| DELETE | `/api/skills/:skillId/user/:userId` | Удаление навыка у пользователя |
+| GET | `/api/skills/user/:userId/focus` | Получение фокусных навыков пользователя |
+| POST | `/api/skills/:skillId/user/:userId/focus` | Добавление навыка в фокусные |
+| DELETE | `/api/skills/:skillId/user/:userId/focus` | Удаление навыка из фокусных |
+| POST | `/api/skills/:skillId/tasks` | Добавление задачи к навыку |
+| DELETE | `/api/skills/user/:userId/all` | Удаление всех навыков пользователя |
+| DELETE | `/api/skills/user/:userId/focus/all` | Удаление всех фокусных навыков пользователя |
+
+### Задачи (Tasks)
+
+| Метод | Эндпоинт | Описание |
+|-------|----------|----------|
+| GET | `/api/tasks` | Получение списка всех задач (опционально с фильтром по skillId) |
+| GET | `/api/tasks/user/:userId` | Получение задач пользователя (опционально с фильтром по skillId) |
+| POST | `/api/tasks` | Создание новой задачи |
+| PATCH | `/api/tasks/:id/user/:userId` | Обновление статуса задачи у пользователя |
+| DELETE | `/api/tasks/:id` | Удаление задачи |
+| DELETE | `/api/tasks/user/:userId/all` | Удаление всех задач пользователя |
+
+## Логика работы
+
+1. **Пользователь начинает с пустыми данными**
+   - Нет роадмапов, навыков и задач
+
+2. **Добавление роадмапа**
+   - Пользователь добавляет роадмап
+   - Все задачи из этого роадмапа автоматически добавляются в его список задач
+
+3. **Выполнение задач**
+   - Задачи привязаны к навыкам
+   - При выполнении задачи (completed = true) пользователь автоматически получает связанный навык
+   - Прогресс навыка рассчитывается как процент выполненных задач
+
+4. **Прогресс роадмапа**
+   - Прогресс роадмапа рассчитывается как процент выполненных задач в этом роадмапе
+
+5. **Фокусные навыки**
+   - Пользователь может добавить навык в список фокусных, если прогресс по нему >= 50%
+
+## Запуск приложения
 
 ```bash
-$ npm install
+# Установка зависимостей
+npm install
+
+# Запуск в режиме разработки
+npm run start:dev
+
+# Сборка проекта
+npm run build
+
+# Запуск в production режиме
+npm run start:prod
 ```
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).

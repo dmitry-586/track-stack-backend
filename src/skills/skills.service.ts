@@ -85,6 +85,28 @@ export class SkillsService {
 	}
 
 	async addSkillToUser(userId: string, skillId: string): Promise<void> {
+		// Получаем информацию о скилле
+		const skill = await this.prisma.skill.findUnique({
+			where: { skillId },
+		})
+		
+		// Проверяем, существует ли скилл
+		if (!skill) {
+			throw new HttpException(
+				"Скилл не найден",
+				HttpStatus.NOT_FOUND
+			)
+		}
+		
+		// Проверяем, не входит ли имя скилла в запрещенный список
+		if (skill.name === "Инструменты" || skill.name === "Практика" || skill.name === "Дополнительно") {
+			throw new HttpException(
+				`Скилл "${skill.name}" не может быть добавлен пользователю`,
+				HttpStatus.FORBIDDEN
+			)
+		}
+		
+		// Добавляем скилл пользователю
 		await this.prisma.userSkill.create({
 			data: {
 				userId,
@@ -111,6 +133,25 @@ export class SkillsService {
 		progress: number,
 		prisma: Prisma.TransactionClient = this.prisma
 	): Promise<void> {
+		// Получаем информацию о скилле
+		const skill = await prisma.skill.findUnique({
+			where: { skillId },
+		})
+		
+		// Проверяем, существует ли скилл
+		if (!skill) {
+			throw new HttpException(
+				"Скилл не найден",
+				HttpStatus.NOT_FOUND
+			)
+		}
+		
+		// Проверяем, не входит ли имя скилла в запрещенный список
+		if (skill.name === "Инструменты" || skill.name === "Практика" || skill.name === "Дополнительно") {
+			console.log(`Скилл "${skill.name}" не может быть добавлен пользователю через обновление прогресса`)
+			return
+		}
+
 		// Ограничиваем прогресс от 0 до 100
 		const clampedProgress = Math.max(0, Math.min(100, progress))
 
@@ -134,14 +175,14 @@ export class SkillsService {
 		}
 
 		// Обновляем прогресс во всех роадмепах, содержащих этот скилл
-		const skill = await prisma.skill.findUnique({
+		const skillWithRoadmaps = await prisma.skill.findUnique({
 			where: { skillId },
 			include: { roadmaps: true }
 		})
 
-		if (skill && skill.roadmaps.length > 0) {
-			for (const roadmap of skill.roadmaps) {
-				await this.roadmapsService.calculateRoadmapProgress(userId, roadmap.roadmapId)
+		if (skillWithRoadmaps && skillWithRoadmaps.roadmaps.length > 0) {
+			for (const roadmap of skillWithRoadmaps.roadmaps) {
+				await this.roadmapsService.calculateRoadmapProgress(userId, roadmap.roadmapId, prisma)
 			}
 		}
 	}
@@ -151,6 +192,25 @@ export class SkillsService {
 		skillId: string,
 		prisma: Prisma.TransactionClient = this.prisma
 	): Promise<void> {
+		// Получаем информацию о скилле
+		const skill = await prisma.skill.findUnique({
+			where: { skillId },
+		})
+		
+		// Проверяем, существует ли скилл
+		if (!skill) {
+			throw new HttpException(
+				"Скилл не найден",
+				HttpStatus.NOT_FOUND
+			)
+		}
+		
+		// Проверяем, не входит ли имя скилла в запрещенный список
+		if (skill.name === "Инструменты" || skill.name === "Практика" || skill.name === "Дополнительно") {
+			console.log(`Скилл "${skill.name}" не может быть добавлен пользователю через расчет прогресса`)
+			return
+		}
+
 		// Получаем все задачи для этого скилла
 		const totalTasks = await prisma.task.count({ where: { skillId } })
 		
@@ -191,14 +251,14 @@ export class SkillsService {
 		}
 		
 		// Обновляем прогресс во всех роадмепах, содержащих этот скилл
-		const skill = await prisma.skill.findUnique({
+		const skillWithRoadmaps = await prisma.skill.findUnique({
 			where: { skillId },
 			include: { roadmaps: true }
 		})
 
-		if (skill && this.roadmapsService && skill.roadmaps.length > 0) {
-			for (const roadmap of skill.roadmaps) {
-				await this.roadmapsService.calculateRoadmapProgress(userId, roadmap.roadmapId)
+		if (skillWithRoadmaps && this.roadmapsService && skillWithRoadmaps.roadmaps.length > 0) {
+			for (const roadmap of skillWithRoadmaps.roadmaps) {
+				await this.roadmapsService.calculateRoadmapProgress(userId, roadmap.roadmapId, prisma)
 			}
 		}
 	}
@@ -358,7 +418,7 @@ export class SkillsService {
 				
 				// Пересчитываем прогресс для каждого роадмапа
 				for (const roadmapId of affectedRoadmapIds) {
-					await this.roadmapsService.calculateRoadmapProgress(userId, roadmapId)
+					await this.roadmapsService.calculateRoadmapProgress(userId, roadmapId, prisma)
 				}
 			}
 		})

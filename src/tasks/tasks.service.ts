@@ -106,7 +106,11 @@ export class TasksService {
 			const task = await prisma.task.findUnique({
 				where: { taskId },
 				include: { 
-					skill: true 
+					skill: {
+						include: {
+							roadmaps: true
+						}
+					} 
 				},
 			})
 
@@ -122,37 +126,41 @@ export class TasksService {
 			})
 
 			if (completed) {
-				await prisma.userSkill.upsert({
-					where: { userId_skillId: { userId, skillId: task.skillId } },
-					update: {},
-					create: {
-						userId,
-						skillId: task.skillId,
-						progress: 0,
-					},
-				})
+				if (task.skill.name === "Инструменты" || task.skill.name === "Практика" || task.skill.name === "Дополнительно") {
+					console.log(`Скилл "${task.skill.name}" не может быть добавлен пользователю автоматически`)
+				} else {
+					await prisma.userSkill.upsert({
+						where: { userId_skillId: { userId, skillId: task.skillId } },
+						update: {},
+						create: {
+							userId,
+							skillId: task.skillId,
+							progress: 0,
+						},
+					})
+				}
 			}
 
+			// Обновляем прогресс скилла
 			await this.skillsService.calculateAndUpdateSkillProgress(
 				userId,
 				task.skillId,
 				prisma
 			)
 
-			const skill = await prisma.skill.findUnique({
-				where: { skillId: task.skillId },
-				include: { roadmaps: true }
-			})
-
-			if (skill && skill.roadmaps.length > 0) {
+			// Обновляем прогресс всех роадмапов, содержащих этот скилл
+			if (task.skill.roadmaps.length > 0) {
 				const roadmapsService = this.skillsService.getRoadmapsService();
 				if (roadmapsService) {
-					for (const roadmap of skill.roadmaps) {
-						await roadmapsService.calculateRoadmapProgress(
-							userId, 
-							roadmap.roadmapId
-						);
-					}
+					await Promise.all(
+						task.skill.roadmaps.map(roadmap => {
+							return roadmapsService.calculateRoadmapProgress(
+								userId, 
+								roadmap.roadmapId,
+								prisma
+							)
+						})
+					);
 				}
 			}
 

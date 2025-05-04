@@ -35,7 +35,11 @@ export class RoadmapsService {
 					include: {
 						skills: {
 							include: {
-								tasks: true,
+								tasks: {
+									include: {
+										userTasks: true
+									}
+								}
 							},
 						},
 					},
@@ -182,14 +186,17 @@ export class RoadmapsService {
 				throw new HttpException("Roadmap already added", HttpStatus.CONFLICT)
 			}
 
-			// Создаем связь пользователя с роадмепом
-			await prisma.userRoadmap.create({
+			// Добавляем роадмап пользователю
+			const userRoadmap = await prisma.userRoadmap.create({
 				data: {
 					userId,
 					roadmapId,
-					progress: 0,
-				},
+					progress: 0
+				}
 			})
+
+			// Рассчитываем начальный прогресс
+			await this.calculateRoadmapProgress(userId, roadmapId, prisma)
 
 			// Собираем все задачи из всех скиллов роадмапа
 			const tasksToAdd: { userId: string; taskId: string; completed: boolean }[] = []
@@ -214,7 +221,7 @@ export class RoadmapsService {
 			}
 
 			// Пересчитываем прогресс роадмепа
-			await this.calculateRoadmapProgress(userId, roadmapId)
+			await this.calculateRoadmapProgress(userId, roadmapId, prisma)
 		})
 	}
 
@@ -351,51 +358,64 @@ export class RoadmapsService {
 	}
 
 	// Метод для расчета прогресса роадмапа на основе выполненных задач
-	async calculateRoadmapProgress(userId: string, roadmapId: string) {
+	async calculateRoadmapProgress(
+		userId: string, 
+		roadmapId: string,
+		prisma: Prisma.TransactionClient = this.prisma
+	) {
 		try {
+			
 			// Получаем роадмап со всеми связанными скиллами и задачами
-			const roadmap = await this.prisma.roadmap.findUnique({
+			const roadmap = await prisma.roadmap.findUnique({
 				where: { roadmapId },
 				include: {
 					skills: {
 						include: {
-							tasks: true,
-						},
-					},
-				},
+							tasks: {
+								include: {
+									userTasks: true
+								}
+							}
+						}
+					}
+				}
 			})
 
 			if (!roadmap) {
 				return
 			}
 
-			// Собираем все задачи, связанные с роадмапом
-			const allTaskIds: string[] = []
+			let totalTasks = 0
+			let completedTasks = 0
+
+			// Подсчитываем общее количество задач и выполненных задач
 			for (const skill of roadmap.skills) {
+				let skillTotalTasks = 0
+				let skillCompletedTasks = 0
+				
 				for (const task of skill.tasks) {
-					allTaskIds.push(task.taskId)
+					skillTotalTasks++
+					totalTasks++
+					// Проверяем, есть ли у задачи userTask с completed: true
+					const userTask = task.userTasks.find(ut => ut.userId === userId)
+					if (userTask?.completed) {
+						skillCompletedTasks++
+						completedTasks++
+					}
 				}
+				
 			}
 
 			// Если нет задач, пропускаем расчет
-			if (allTaskIds.length === 0) {
+			if (totalTasks === 0) {
 				return
 			}
 
-			// Получаем выполненные задачи пользователя
-			const completedUserTasks = await this.prisma.userTask.count({
-				where: {
-					userId,
-					taskId: { in: allTaskIds },
-					completed: true,
-				},
-			})
-
 			// Рассчитываем прогресс как процент выполненных задач
-			const progress = Math.round((completedUserTasks / allTaskIds.length) * 100)
+			const progress = Math.round((completedTasks / totalTasks) * 100)
 
 			// Обновляем прогресс роадмапа пользователя
-			await this.prisma.userRoadmap.update({
+			await prisma.userRoadmap.update({
 				where: {
 					userId_roadmapId: { userId, roadmapId },
 				},
@@ -627,7 +647,7 @@ export class RoadmapsService {
 				}
 
 				// Обновляем прогресс роадмапа
-				await this.calculateRoadmapProgress(userId, roadmapId)
+				await this.calculateRoadmapProgress(userId, roadmapId, prisma)
 			}
 
 			return updatedSkill

@@ -13,7 +13,14 @@ export class RoadmapsService {
 
 	// Получение всех роадмапов
 	async getAllRoadmaps(): Promise<Roadmap[]> {
-		return this.prisma.roadmap.findMany({
+		const complexityOrder = {
+			"подходит для новичков": 1,
+			"требует опыта": 2,
+			"для уверенных разработчиков": 3,
+			"экспертный уровень": 4,
+		};
+
+		const roadmaps = await this.prisma.roadmap.findMany({
 			include: {
 				skills: {
 					include: {
@@ -21,7 +28,12 @@ export class RoadmapsService {
 					},
 				},
 			},
-		})
+		});
+
+		// Сортируем роадмапы по сложности
+		return roadmaps.sort((a, b) => {
+			return (complexityOrder[a.complexity] || 0) - (complexityOrder[b.complexity] || 0);
+		});
 	}
 
 	// Получение роадмапов пользователя
